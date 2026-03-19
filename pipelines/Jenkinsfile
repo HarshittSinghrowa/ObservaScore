@@ -1,0 +1,151 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to build')
+        choice(name: 'ENVIRONMENT', choices: ['dev', 'staging', 'prod'], description: 'Target environment')
+    }
+
+    environment {
+        APP_NAME    = 'observascore'
+        VERSION     = "${env.BUILD_ID}"
+        DOCKER_REPO = 'harshittsinghrowa'
+        AUTHOR      = 'Harshitt Singhrowa'
+        REG_NO      = '23FE10CSE00838'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "Building ${APP_NAME} v${VERSION} by ${AUTHOR} (${REG_NO})"
+                git branch: "${params.BRANCH}",
+                    url: 'https://github.com/harshittsinghrowa/devops-project-observascore.git'
+            }
+        }
+
+        stage('Code Quality') {
+            parallel {
+                stage('Lint Backend') {
+                    steps {
+                        dir('src/main/backend') {
+                            sh 'npm ci'
+                            sh 'npm run lint || true'
+                        }
+                    }
+                }
+                stage('Lint Frontend') {
+                    steps {
+                        dir('src/main/frontend') {
+                            sh 'npm ci'
+                            sh 'npm run lint || true'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Test') {
+            parallel {
+                stage('Unit Tests') {
+                    steps {
+                        dir('src/main/backend') {
+                            sh 'npm test -- --coverage'
+                        }
+                    }
+                    post {
+                        always {
+                            junit 'src/main/backend/test-results/**/*.xml'
+                        }
+                    }
+                }
+                stage('Frontend Tests') {
+                    steps {
+                        dir('src/main/frontend') {
+                            sh 'CI=true npm test'
+                        }
+                    }
+                }
+                stage('Integration Tests') {
+                    steps {
+                        dir('tests/integration') {
+                            sh 'npm test || true'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    sh "docker build -f infrastructure/docker/Dockerfile.backend -t ${DOCKER_REPO}/${APP_NAME}-backend:${VERSION} ./src/main/backend"
+                    sh "docker build -f infrastructure/docker/Dockerfile.frontend -t ${DOCKER_REPO}/${APP_NAME}-frontend:${VERSION} ./src/main/frontend"
+                    sh "docker tag ${DOCKER_REPO}/${APP_NAME}-backend:${VERSION} ${DOCKER_REPO}/${APP_NAME}-backend:latest"
+                    sh "docker tag ${DOCKER_REPO}/${APP_NAME}-frontend:${VERSION} ${DOCKER_REPO}/${APP_NAME}-frontend:latest"
+                }
+            }
+        }
+
+        stage('Security Scan') {
+            steps {
+                script {
+                    sh "trivy image --severity HIGH,CRITICAL ${DOCKER_REPO}/${APP_NAME}-backend:${VERSION} || true"
+                    sh "trivy image --severity HIGH,CRITICAL ${DOCKER_REPO}/${APP_NAME}-frontend:${VERSION} || true"
+                }
+            }
+        }
+
+        stage('Push to Registry') {
+            when { branch 'main' }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+                    sh "docker push ${DOCKER_REPO}/${APP_NAME}-backend:${VERSION}"
+                    sh "docker push ${DOCKER_REPO}/${APP_NAME}-frontend:${VERSION}"
+                    sh "docker push ${DOCKER_REPO}/${APP_NAME}-backend:latest"
+                    sh "docker push ${DOCKER_REPO}/${APP_NAME}-frontend:latest"
+                }
+            }
+        }
+
+        stage('Deploy to Staging') {
+            when { expression { params.ENVIRONMENT == 'staging' } }
+            steps {
+                sh "docker-compose -f docker-compose.yml up -d --build"
+                echo "Deployed to staging: http://localhost:3000"
+            }
+        }
+
+        stage('Deploy to Production') {
+            when { expression { params.ENVIRONMENT == 'prod' } }
+            steps {
+                input message: 'Deploy ObservaScore to production?', ok: '🚀 Deploy'
+                sh "kubectl apply -f infrastructure/kubernetes/"
+                sh "kubectl rollout status deployment/observascore-backend -n observascore"
+                sh "kubectl rollout status deployment/observascore-frontend -n observascore"
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Pipeline succeeded for ${APP_NAME} v${VERSION}"
+            emailext(
+                subject: "✅ ObservaScore Pipeline #${env.BUILD_NUMBER} PASSED",
+                body: "Build ${env.BUILD_NUMBER} succeeded.\nAuthor: ${AUTHOR} (${REG_NO})\nURL: ${env.BUILD_URL}",
+                to: 'harshittsinghrowa@example.com'
+            )
+        }
+        failure {
+            echo "❌ Pipeline failed for ${APP_NAME} v${VERSION}"
+            emailext(
+                subject: "❌ ObservaScore Pipeline #${env.BUILD_NUMBER} FAILED",
+                body: "Build ${env.BUILD_NUMBER} failed.\nAuthor: ${AUTHOR} (${REG_NO})\nURL: ${env.BUILD_URL}",
+                to: 'harshittsinghrowa@example.com'
+            )
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

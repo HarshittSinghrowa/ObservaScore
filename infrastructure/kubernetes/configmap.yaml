@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observascore-config
+  namespace: observascore
+data:
+  NODE_ENV: "production"
+  PORT: "5000"
+  LOG_LEVEL: "info"
+  APP_NAME: "ObservaScore"
+  AUTHOR: "Harshitt Singhrowa"
+  REG_NO: "23FE10CSE00838"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observascore
+  labels:
+    project: observascore
+    course: CSE3253-DevOps
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pvc
+  namespace: observascore
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

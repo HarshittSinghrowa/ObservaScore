@@ -1,0 +1,110 @@
+name: ObservaScore CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  APP_NAME: observascore
+  AUTHOR: Harshitt Singhrowa
+  REG_NO: 23FE10CSE00838
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: src/main/backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: cd src/main/backend && npm ci
+
+      - name: Lint backend
+        run: cd src/main/backend && npm run lint || true
+
+      - name: Run backend tests
+        run: cd src/main/backend && npm test -- --coverage --watchAll=false
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-coverage
+          path: src/main/backend/coverage/
+
+      - name: Install frontend dependencies
+        run: cd src/main/frontend && npm ci
+
+      - name: Run frontend tests
+        run: cd src/main/frontend && CI=true npm test
+
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build backend image
+        run: docker build -f infrastructure/docker/Dockerfile.backend -t $APP_NAME-backend:${{ github.sha }} ./src/main/backend
+
+      - name: Build frontend image
+        run: docker build -f infrastructure/docker/Dockerfile.frontend -t $APP_NAME-frontend:${{ github.sha }} ./src/main/frontend
+
+      - name: Security scan backend
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          trivy image --severity HIGH,CRITICAL --exit-code 0 $APP_NAME-backend:${{ github.sha }}
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    steps:
+      - uses: actions/checkout@v3
+      - name: Deploy to staging
+        run: |
+          echo "Deploying ObservaScore to staging"
+          echo "Author: $AUTHOR | Reg: $REG_NO"
+          docker-compose up -d --build
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://observascore.example.com
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push images
+        run: |
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/$APP_NAME-backend:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/$APP_NAME-frontend:latest
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -f infrastructure/kubernetes/
+          kubectl rollout status deployment/observascore-backend -n observascore

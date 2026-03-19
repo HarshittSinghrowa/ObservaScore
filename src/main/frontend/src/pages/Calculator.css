@@ -1,0 +1,97 @@
+.calculator { display: flex; flex-direction: column; gap: 32px; }
+
+.calc-header h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+.calc-header p { color: var(--text-secondary); }
+
+.calc-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 24px;
+  align-items: start;
+}
+
+.calc-main { display: flex; flex-direction: column; gap: 24px; }
+
+.project-info-card h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+
+.project-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.pillars-section h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+
+/* Sidebar */
+.sticky-panel {
+  position: sticky;
+  top: 88px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sticky-panel h3 { font-size: 14px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+
+.live-score-display {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  justify-content: center;
+}
+
+.live-score-number { font-size: 64px; font-weight: 800; line-height: 1; transition: color 0.4s; }
+.live-score-label { font-size: 18px; color: var(--text-muted); }
+
+.live-bar {
+  height: 8px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.live-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease, background 0.4s;
+}
+
+.live-maturity { text-align: center; font-size: 15px; font-weight: 600; }
+
+.pillar-mini-scores { display: flex; flex-direction: column; gap: 10px; }
+
+.mini-score-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 36px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.mini-bar {
+  height: 4px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.mini-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.calc-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.calc-actions .btn { justify-content: center; }
+
+@media (max-width: 960px) {
+  .calc-layout { grid-template-columns: 1fr; }
+  .sticky-panel { position: static; }
+  .project-form { grid-template-columns: 1fr; }
+}

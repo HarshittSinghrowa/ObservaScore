@@ -1,0 +1,130 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observascore-backend
+  namespace: observascore
+  labels:
+    app: observascore
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: observascore
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: observascore
+        tier: backend
+    spec:
+      containers:
+        - name: backend
+          image: observascore-backend:latest
+          ports:
+            - containerPort: 5000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "5000"
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: observascore-secrets
+                  key: mongo-uri
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observascore-frontend
+  namespace: observascore
+  labels:
+    app: observascore
+    tier: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: observascore
+      tier: frontend
+  template:
+    metadata:
+      labels:
+        app: observascore
+        tier: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: observascore-frontend:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observascore-mongodb
+  namespace: observascore
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: observascore
+      tier: database
+  template:
+    metadata:
+      labels:
+        app: observascore
+        tier: database
+    spec:
+      containers:
+        - name: mongodb
+          image: mongo:6.0
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: mongo-storage
+              mountPath: /data/db
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+      volumes:
+        - name: mongo-storage
+          persistentVolumeClaim:
+            claimName: mongo-pvc
