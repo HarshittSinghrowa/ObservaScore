@@ -299,15 +299,6 @@ cd src/main/frontend && CI=true npm test
 
 ---
 
-## 🏆 Self-Assessment
-
-| Criteria | Max Marks | Self Score | Remarks |
-|----------|-----------|------------|---------|
-| Implementation | 4 | 4 | Full MERN stack, all features working |
-| Documentation | 3 | 3 | Comprehensive README, API docs, design doc |
-| Innovation | 2 | 2 | Live score preview, radar chart, maturity levels |
-| Presentation | 1 | 1 | Clear demo video and walkthrough |
-| **Total** | **10** | **10** | |
 
 ### Project Challenges
 1. **MongoDB connection in Docker** — Fixed using Docker Compose service names and health checks
